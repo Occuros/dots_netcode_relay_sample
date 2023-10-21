@@ -79,7 +79,7 @@ namespace Samples.HelloNetcode
                 }
                 case ClientStatus.GetJoinCodeFromHost:
                 {
-                    Debug.Log("Waiting for join code from host server");
+                    // Debug.Log("Waiting for join code from host server");
                     
                     var hostServer = World.GetExistingSystemManaged<HostServer>();
                     m_ClientStatus = JoinUsingJoinCode(hostServer.JoinCode, out m_JoinTask);
@@ -87,7 +87,7 @@ namespace Samples.HelloNetcode
                 }
                 case ClientStatus.WaitForJoin:
                 {
-                    Debug.Log("Binding to relay server");
+                    // Debug.Log("Binding to relay server");
 
                     m_ClientStatus = WaitForJoin(m_JoinTask, out RelayClientData);
                     return;
@@ -96,10 +96,15 @@ namespace Samples.HelloNetcode
                 {
                     if (m_SetupTask.IsCompleted)
                     {
+                        Debug.Log("Connecting Player Init Completed");
                         if (!AuthenticationService.Instance.IsSignedIn)
                         {
                             m_SetupTask = AuthenticationService.Instance.SignInAnonymouslyAsync();
                             m_ClientStatus = ClientStatus.WaitForSignIn;
+                        }
+                        else
+                        {
+                            m_ClientStatus = JoinUsingJoinCode(m_RelayJoinCode, out m_JoinTask);
                         }
                     }
                     return;
@@ -131,7 +136,7 @@ namespace Samples.HelloNetcode
                 Debug.LogException(joinTask.Exception);
                 return ClientStatus.FailedToConnect;
             }
-
+            Debug.Log("Binding to relay");
             return BindToRelay(joinTask, out relayClientData);
         }
 
@@ -162,7 +167,7 @@ namespace Samples.HelloNetcode
                 joinTask = null;
                 return ClientStatus.GetJoinCodeFromHost;
             }
-
+            Debug.Log($"Connecting Player tries to join with code: {hostServerJoinCode}");
             // Send the join request to the Relay service
             joinTask = RelayService.Instance.JoinAllocationAsync(hostServerJoinCode);
             return ClientStatus.WaitForJoin;

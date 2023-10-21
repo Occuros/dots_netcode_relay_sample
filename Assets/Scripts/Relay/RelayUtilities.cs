@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Unity.Collections;
 using Unity.Networking.Transport.Relay;
 using Unity.Services.Relay.Models;
 
@@ -14,5 +15,7 @@ namespace Samples.HelloNetcode
         {
             return endpoints.FirstOrDefault(endpoint => endpoint.ConnectionType == connectionType);
         }
+
+        public const string JoinCodeKey = "JoinCode";
     }
 }

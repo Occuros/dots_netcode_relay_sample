@@ -63,35 +63,35 @@ namespace Samples.HelloNetcode
             {
                 case HostStatus.FailedToHost:
                 {
-                    Debug.Log("Failed check console");
+                    // Debug.Log("Failed check console");
 
                     m_HostStatus = HostStatus.Unknown;
                     return;
                 }
                 case HostStatus.Ready:
                 {
-                    Debug.Log("Success, players may now connect");
+                    // Debug.Log("Success, players may now connect");
 
                     m_HostStatus = HostStatus.Unknown;
                     return;
                 }
                 case HostStatus.InitializeServices:
                 {
-                    Debug.Log("Initializing services");
+                    // Debug.Log("Initializing services");
                     m_InitializeTask = UnityServices.InitializeAsync();
                     m_HostStatus = HostStatus.Initializing;
                     return;
                 }
                 case HostStatus.Initializing:
                 {
-                    Debug.Log("Waiting for initializiation");
+                    // Debug.Log("Waiting for initializiation");
 
                     m_HostStatus = WaitForInitialization(m_InitializeTask, out m_SignInTask);
                     return;
                 }
                 case HostStatus.SigningIn:
                 {
-                    Debug.Log("Logging in anonymously");
+                    // Debug.Log("Logging in anonymously");
 
                     m_HostStatus = WaitForSignIn(m_SignInTask, out m_RegionsTask);
                     return;
@@ -99,28 +99,28 @@ namespace Samples.HelloNetcode
                 case HostStatus.GettingRegions:
                 {
                     
-                    Debug.Log("Waiting for regions");
+                    // Debug.Log("Waiting for regions");
 
                     m_HostStatus = WaitForRegions(m_RegionsTask, out m_AllocationTask);
                     return;
                 }
                 case HostStatus.Allocating:
                 {
-                    Debug.Log("Waiting for allocation");
+                    // Debug.Log("Waiting for allocation");
 
                     m_HostStatus = WaitForAllocations(m_AllocationTask, out m_JoinCodeTask);
                     return;
                 }
                 case HostStatus.GettingJoinCode:
                 {
-                    Debug.Log("Waiting for join code");
+                    // Debug.Log("Waiting for join code");
 
                     m_HostStatus = WaitForJoin(m_JoinCodeTask, out JoinCode);
                     return;
                 }
                 case HostStatus.GetRelayData:
                 {
-                    Debug.Log("Getting relay data");
+                    // Debug.Log("Getting relay data");
 
                     m_HostStatus = BindToHost(m_AllocationTask, out RelayServerData);
                     return;
@@ -213,7 +213,7 @@ namespace Samples.HelloNetcode
                 Debug.LogException(joinCodeTask.Exception);
                 return HostStatus.FailedToHost;
             }
-
+            Debug.Log("Waiting for join code");
             joinCode = joinCodeTask.Result;
             Debug.Log($"Received join code {joinCode}");
             return HostStatus.GetRelayData;
@@ -234,7 +234,7 @@ namespace Samples.HelloNetcode
                 joinCodeTask = null;
                 return HostStatus.FailedToHost;
             }
-
+            Debug.Log("Waiting for allocation");
             // Request the join code to the Relay service
             var allocation = allocationTask.Result;
             joinCodeTask = RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
@@ -256,7 +256,7 @@ namespace Samples.HelloNetcode
                 allocationTask = null;
                 return HostStatus.FailedToHost;
             }
-
+            Debug.Log("Waiting for regions");
             var regionList = collectRegionTask.Result;
             // pick a region from the list
             var targetRegion = regionList[0].Id;

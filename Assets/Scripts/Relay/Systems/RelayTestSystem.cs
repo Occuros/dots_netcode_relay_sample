@@ -1,11 +1,16 @@
-﻿using Samples.HelloNetcode;
+﻿using System.Collections.Generic;
+using Samples.HelloNetcode;
 using TMPro;
+using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Networking.Transport;
 using Unity.Networking.Transport.Relay;
 using Unity.Scenes;
+using Unity.Services.Lobbies;
+using Unity.Services.Lobbies.Models;
 using UnityEngine;
+using UnityEngine.Rendering.Universal;
 using UnityEngine.SceneManagement;
 
 namespace Relay
@@ -14,11 +19,6 @@ namespace Relay
     {
         private ConnectingPlayer m_HostClientSystem;
         private HostServer m_HostServerSystem;
-
-        private TMP_InputField _tmpInputField;
-
-        private bool _initialized = false;
-        // private ConnectionState m_State;
 
         public struct RelayConnectionState : IComponentData
         {
@@ -40,18 +40,23 @@ namespace Relay
             EntityManager.AddComponent<RelayConnectionState>(this.SystemHandle);
         }
 
-        protected override void OnStartRunning()
-        {
-            _tmpInputField = GameObject.FindGameObjectWithTag("RelayJoinCode").GetComponent<TMP_InputField>();
-            _initialized = true;
-        }
 
         protected override void OnUpdate()
         {
             HandleInput();
 
+
+            if (SystemAPI.TryGetSingleton<RequestClientRelayWithJoinCode>(out var request))
+            {
+                JoinWithCode(request.joinCode);
+                EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestClientRelayWithJoinCode>());
+                return;
+            }
+
             ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
             var m_State = state.connectionState;
+
+
             switch (m_State)
             {
                 case ConnectionState.SetupHost:
@@ -93,7 +98,7 @@ namespace Relay
                 }
                 case ConnectionState.JoinGame:
                 {
-                    Debug.Log("Join Game");
+                    // Debug.Log($"Join Game {m_HostClientSystem?.RelayClientData.Endpoint.IsValid}");
                     var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
                     if (hasClientConnectedToRelayService.GetValueOrDefault())
                     {
@@ -105,10 +110,10 @@ namespace Relay
                 }
                 case ConnectionState.JoinLocalGame:
                 {
-                    Debug.Log("Join Local Game");
                     var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
                     if (hasClientConnectedToRelayService.GetValueOrDefault())
                     {
+                        Debug.Log("Join Local Game");
                         SetupRelayHostedServerAndConnect();
                         m_State = ConnectionState.Unknown;
                     }
@@ -124,15 +129,10 @@ namespace Relay
 
         private void HandleInput()
         {
-            if (!_initialized) return;
             if (!SystemAPI.HasSingleton<JoinCode>()) return;
             ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
             if (state.connectionState != ConnectionState.Unknown) return;
-            ref var joinCode = ref SystemAPI.GetSingletonRW<JoinCode>().ValueRW;
-            if (_tmpInputField != null)
-            {
-                joinCode.value = _tmpInputField.text;
-            }
+
             if (Input.GetKeyDown(KeyCode.H))
             {
                 state.connectionState = ConnectionState.SetupHost;
@@ -141,8 +141,24 @@ namespace Relay
             {
                 state.connectionState = ConnectionState.SetupClient;
             }
-     
-        
+        }
+
+        public void Host()
+        {
+            ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
+            state.connectionState = ConnectionState.SetupHost;
+        }
+
+
+        public void JoinWithCode(FixedString64Bytes code)
+        {
+            Debug.Log($"We are joining as client with code {code}");
+            ref var joinCode = ref SystemAPI.GetSingletonRW<JoinCode>().ValueRW;
+            joinCode.value = code;
+            ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
+            
+            JoinAsClient();
+            state.connectionState = ConnectionState.JoinGame;
         }
 
         void JoinAsClient()
@@ -170,6 +186,15 @@ namespace Relay
             var relayServerData = world.GetExistingSystemManaged<HostServer>().RelayServerData;
             var joinCode = world.GetExistingSystemManaged<HostServer>().JoinCode;
 
+
+            var createLobbyEntity = EntityManager.CreateEntity();
+            EntityManager.AddComponentData(createLobbyEntity, new CreateLobbyRequest()
+            {
+                joinCode = joinCode,
+                lobbyName = $"CubeTest_{Random.Range(0, 10_000)}",
+                maxPlayers = 4
+            });
+
             var oldConstructor = NetworkStreamReceiveSystem.DriverConstructor;
             NetworkStreamReceiveSystem.DriverConstructor = new RelayDriverConstructor(relayServerData, relayClientData);
 
@@ -185,11 +210,8 @@ namespace Relay
                 World.DefaultGameObjectInjectionWorld = server;
 
 
-            // var joinCodeEntity = server.EntityManager.CreateEntity(ComponentType.ReadOnly<JoinCode>());
             ref var joinCodeComponent = ref SystemAPI.GetSingletonRW<JoinCode>().ValueRW;
-            // server.EntityManager.SetComponentData(joinCodeEntity, new JoinCode { value = joinCode });
             joinCodeComponent.value = joinCode;
-            _tmpInputField.text = joinCode;
 
             var networkStreamEntity
                 = server.EntityManager.CreateEntity(ComponentType.ReadWrite<NetworkStreamRequestListen>());
