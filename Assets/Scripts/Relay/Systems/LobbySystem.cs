@@ -12,6 +12,7 @@ using Random = UnityEngine.Random;
 
 namespace Relay
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class LobbySystem : SystemBase
     {
         private Task<Lobby> _createLobbyTask;

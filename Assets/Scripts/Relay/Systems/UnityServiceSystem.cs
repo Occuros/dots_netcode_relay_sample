@@ -6,6 +6,7 @@ using UnityEngine;
 
 namespace Relay.Systems
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class UnityServiceSystem : SystemBase
     {
         private Task _initializeTask;

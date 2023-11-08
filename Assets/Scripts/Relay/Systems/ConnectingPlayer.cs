@@ -18,6 +18,7 @@ namespace Samples.HelloNetcode
     /// </summary>
     [DisableAutoCreation]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class ConnectingPlayer : SystemBase
     {
         Task<JoinAllocation> m_JoinTask;

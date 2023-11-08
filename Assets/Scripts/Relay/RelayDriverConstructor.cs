@@ -1,6 +1,7 @@
 using Unity.Entities;
 using Unity.NetCode;
 using Unity.Networking.Transport.Relay;
+using UnityEngine;
 
 namespace Samples.HelloNetcode
 {

@@ -22,6 +22,7 @@ namespace Samples.HelloNetcode
     /// 5. Getting relay server information. I.e. IP-address, etc.
     /// </summary>
     [DisableAutoCreation]
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial class HostServer : SystemBase
     {

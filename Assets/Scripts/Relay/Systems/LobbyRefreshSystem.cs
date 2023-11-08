@@ -9,6 +9,7 @@ using UnityEngine;
 
 namespace Relay.Systems
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class LobbyRefreshSystem : SystemBase
     {
         private Task<QueryResponse> _lobbyRefreshTask;

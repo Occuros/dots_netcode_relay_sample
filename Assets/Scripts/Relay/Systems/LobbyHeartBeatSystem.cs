@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace Relay.Systems
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class LobbyHeartBeatSystem : SystemBase
     {
         protected override void OnCreate()

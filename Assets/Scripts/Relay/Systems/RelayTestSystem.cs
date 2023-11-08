@@ -15,10 +15,13 @@ using UnityEngine.SceneManagement;
 
 namespace Relay
 {
+    [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class RelayTestSystem : SystemBase
     {
         private ConnectingPlayer m_HostClientSystem;
         private HostServer m_HostServerSystem;
+
+        private float waitingTime = 0.0f;
 
         public struct RelayConnectionState : IComponentData
         {
@@ -30,6 +33,7 @@ namespace Relay
             Unknown,
             SetupHost,
             SetupClient,
+            DestroyExistingWorlds,
             JoinGame,
             JoinLocalGame,
         }
@@ -114,8 +118,8 @@ namespace Relay
                     if (hasClientConnectedToRelayService.GetValueOrDefault())
                     {
                         Debug.Log("Join Local Game");
-                        SetupRelayHostedServerAndConnect();
-                        m_State = ConnectionState.Unknown;
+                        m_State = SetupRelayHostedServerAndConnect();
+                        // m_State = ConnectionState.Unknown;
                     }
 
                     break;
@@ -170,17 +174,39 @@ namespace Relay
         }
 
 
-        void SetupRelayHostedServerAndConnect()
+        ConnectionState SetupRelayHostedServerAndConnect()
         {
             Debug.Log("setting up realy host server and connect");
             if (ClientServerBootstrap.RequestedPlayType != ClientServerBootstrap.PlayType.ClientAndServer)
             {
                 UnityEngine.Debug.LogError(
                     $"Creating client/server worlds is not allowed if playmode is set to {ClientServerBootstrap.RequestedPlayType}");
-                return;
+                return ConnectionState.Unknown;
+            }
+            var world = World.All[0];
+
+            // var clientTicket = 0;
+            // var serverTicket = 0;
+            // var migrationSystem = world.GetOrCreateSystemManaged<DriverMigrationSystem>();
+            for (int i = World.All.Count - 1; i >= 0; i--)
+            {
+                var previousWorld = World.All[i];
+                if (previousWorld.IsClient() || previousWorld.IsServer())
+                {
+                    Debug.Log($"We dispose of world {previousWorld.Name}");
+                    // if (previousWorld.IsClient())
+                    // {
+                    //     // clientTicket =  migrationSystem.StoreWorld(previousWorld);
+                    // }
+                    // else
+                    // {
+                    //     serverTicket = migrationSystem.StoreWorld(previousWorld);
+                    // }
+                    previousWorld.Dispose();
+                }
             }
 
-            var world = World.All[0];
+
             var relayStuff = SystemAPI.GetSingleton<EnableRelayServer>();
             var relayClientData = world.GetExistingSystemManaged<ConnectingPlayer>().RelayClientData;
             var relayServerData = world.GetExistingSystemManaged<HostServer>().RelayServerData;
@@ -199,10 +225,26 @@ namespace Relay
             NetworkStreamReceiveSystem.DriverConstructor = new RelayDriverConstructor(relayServerData, relayClientData);
 
             var server = ClientServerBootstrap.CreateServerWorld("ServerWorld");
+            // var server = migrationSystem.LoadWorld(serverTicket);
+
+            var systems = DefaultWorldInitialization.GetAllSystems(WorldSystemFilterFlags.ServerSimulation);
+            DefaultWorldInitialization.AddSystemsToRootLevelSystemGroups(server, systems);
+            #if UNITY_DOTSRUNTIME
+            AppendWorldToServerTickWorld(server);
+            #else
+            ScriptBehaviourUpdateOrder.AppendWorldToCurrentPlayerLoop(server);
+            #endif
+            
+
+
+     
             SceneSystem.LoadSceneAsync(server.Unmanaged, relayStuff.sceneReference);
             var client = ClientServerBootstrap.CreateClientWorld("ClientWorld");
+            // var client = migrationSystem.LoadWorld(clientTicket);
             SceneSystem.LoadSceneAsync(client.Unmanaged, relayStuff.sceneReference);
-
+          
+            
+            
             NetworkStreamReceiveSystem.DriverConstructor = oldConstructor;
 
 
@@ -226,6 +268,8 @@ namespace Relay
             // For a locally hosted server, the client would need to connect to NetworkEndpoint.AnyIpv4, and the relayClientData.Endpoint in all other cases.
             client.EntityManager.SetComponentData(networkStreamEntity,
                 new NetworkStreamRequestConnect { Endpoint = relayClientData.Endpoint });
+
+            return ConnectionState.Unknown;
         }
 
         void SetupClient()
