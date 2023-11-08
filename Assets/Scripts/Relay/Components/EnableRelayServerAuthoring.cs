@@ -7,12 +7,14 @@ namespace Samples.HelloNetcode
     public struct EnableRelayServer : IComponentData
     {
         public EntitySceneReference sceneReference;
+        public EntitySceneReference lobbyScene;
     }
 
     #if UNITY_EDITOR
     public class EnableRelayServerAuthoring : MonoBehaviour
     {
         public UnityEditor.SceneAsset coreScene;
+        public UnityEditor.SceneAsset lobbyScene;
         class Baker : Baker<EnableRelayServerAuthoring>
         {
             public override void Bake(EnableRelayServerAuthoring authoring)
@@ -22,6 +24,7 @@ namespace Samples.HelloNetcode
                 AddComponent(entity, new EnableRelayServer()
                 {
                     sceneReference = reference,
+                    lobbyScene = new EntitySceneReference(authoring.lobbyScene),
                 });
             }
         }

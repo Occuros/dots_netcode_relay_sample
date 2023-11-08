@@ -8,11 +8,13 @@ public class GameBootstrap : ClientServerBootstrap
 {
     public override bool Initialize(string defaultWorldName)
     {
-        // AutoConnectPort = 7979; // Enabled auto connect
-        // CreateLocalWorld(defaultWorldName);
-        // return base.Initialize(defaultWorldName); // Use the regular bootstrap
-        AutoConnectPort = 0;
+        AutoConnectPort = 7979; // Enabled auto connect
+        // AutoConnectPort = 0;
         CreateLocalWorld(defaultWorldName);
+        
+        
+        return base.Initialize(defaultWorldName); // Use the regular bootstrap
+   
         return true;
     }
 }

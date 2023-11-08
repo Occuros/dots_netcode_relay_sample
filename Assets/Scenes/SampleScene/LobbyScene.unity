@@ -181,6 +181,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   coreScene: {fileID: 102900000, guid: 304a2f8d39b99b74cb65729ae19f174d, type: 3}
+  lobbyScene: {fileID: 102900000, guid: 45177ffd833237d4e896ce812fc5f5ee, type: 3}
 --- !u!114 &555261370
 MonoBehaviour:
   m_ObjectHideFlags: 0

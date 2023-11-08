@@ -31,6 +31,7 @@ namespace Samples.HelloNetcode
         public void CreateClientDriver(World world, ref NetworkDriverStore driverStore, NetDebug netDebug)
         {
             var settings = DefaultDriverBuilder.GetNetworkSettings();
+            Debug.Log($"Creating client driver with {m_RelayClientData.Endpoint.Address}");
             settings.WithRelayParameters(ref m_RelayClientData);
             DefaultDriverBuilder.RegisterClientUdpDriver(world, ref driverStore, netDebug, settings);
         }
