@@ -12,14 +12,14 @@ namespace Relay
     
     public struct CreateLobbyRequest : IComponentData
     {
-        public FixedString32Bytes joinCode;
+        public FixedString64Bytes joinCode;
         public int maxPlayers;
         public FixedString512Bytes lobbyName;
     }
 
-    public struct RequestClientRelayWithJoinCode : IComponentData
+    public struct JoinLobbyRequest : IComponentData
     {
-        public FixedString64Bytes joinCode;
+        public FixedString64Bytes lobbyId;
     }
 
     public struct LobbyRefresher : IComponentData

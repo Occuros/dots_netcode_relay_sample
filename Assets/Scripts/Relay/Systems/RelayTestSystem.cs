@@ -1,4 +1,5 @@
 ﻿using System.Collections.Generic;
+using Relay.Components;
 using Samples.HelloNetcode;
 using TMPro;
 using Unity.Collections;
@@ -18,8 +19,8 @@ namespace Relay
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class RelayTestSystem : SystemBase
     {
-        private ConnectingPlayer m_HostClientSystem;
-        private HostServer m_HostServerSystem;
+        private JoinRelayServerSystem m_HostClientSystem;
+        private HostRelayServer _mHostRelayServerSystem;
 
         private float waitingTime = 0.0f;
 
@@ -32,6 +33,7 @@ namespace Relay
         {
             Unknown,
             SetupHost,
+            AwaitingHostSetup,
             SetupClient,
             JoinGame,
             JoinLocalGame,
@@ -40,100 +42,125 @@ namespace Relay
         protected override void OnCreate()
         {
             EntityManager.AddComponent<RelayConnectionState>(this.SystemHandle);
+            RequireForUpdate<RequestWorldCreation>();
             RequireForUpdate<EnableRelayServer>();
         }
 
 
-
         protected override void OnUpdate()
         {
-            HandleInput();
-
-
-            if (SystemAPI.TryGetSingleton<RequestClientRelayWithJoinCode>(out var request))
+            if (SystemAPI.TryGetSingleton<RelayServerHostData>(out var serverHostData) &&
+                SystemAPI.TryGetSingleton<RelayClientData>(out var relayClientData))
             {
-                JoinWithCode(request.joinCode);
-                EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestClientRelayWithJoinCode>());
-                return;
+                Debug.Log("Setting up server + client worlds");
+                SetupRelayHostedServerAndConnect(serverHostData.data, relayClientData.data,
+                    serverHostData.joinCode);
+                EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestWorldCreation>());
+            }
+            else if (SystemAPI.TryGetSingleton<RelayClientData>(out relayClientData))
+            {
+                Debug.Log("Setting up client worlds");
+
+                ConnectToRelayServer(relayClientData.data);
+                EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestWorldCreation>());
             }
 
-            ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
-            var m_State = state.connectionState;
-
-
-            switch (m_State)
-            {
-                case ConnectionState.SetupHost:
-                {
-                    Debug.Log("Setting up Host");
-                    HostServer();
-                    m_State = ConnectionState.SetupClient;
-                    goto case ConnectionState.SetupClient;
-                }
-                case ConnectionState.SetupClient:
-                {
-                    var isServerHostedLocally = m_HostServerSystem?.RelayServerData.Endpoint.IsValid;
-                    if (isServerHostedLocally.GetValueOrDefault())
-                    {
-                        Debug.Log("Setting up Client");
-                        SetupClient();
-                        m_HostClientSystem.GetJoinCodeFromHost();
-                        m_State = ConnectionState.JoinLocalGame;
-                        goto case ConnectionState.JoinLocalGame;
-                    }
-
-                    if (SystemAPI.HasSingleton<JoinCode>())
-                    {
-                        var joinCode = SystemAPI.GetSingleton<JoinCode>();
-
-                        var enteredJoinCode = !joinCode.value.IsEmpty;
-                        if (enteredJoinCode)
-                        {
-                            Debug.Log($"Join Code found: {joinCode.value} and join as client");
-
-                            JoinAsClient();
-                            m_State = ConnectionState.JoinGame;
-                            goto case ConnectionState.JoinGame;
-                        }
-                    }
-
-
-                    break;
-                }
-                case ConnectionState.JoinGame:
-                {
-                    // Debug.Log($"Join Game {m_HostClientSystem?.RelayClientData.Endpoint.IsValid}");
-                    var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
-                    if (hasClientConnectedToRelayService.GetValueOrDefault())
-                    {
-                        ConnectToRelayServer();
-                        m_State = ConnectionState.Unknown;
-                    }
-
-                    break;
-                }
-                case ConnectionState.JoinLocalGame:
-                {
-                    var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
-                    if (hasClientConnectedToRelayService.GetValueOrDefault())
-                    {
-                        Debug.Log("Join Local Game");
-                        m_State = SetupRelayHostedServerAndConnect();
-                        // m_State = ConnectionState.Unknown;
-                    }
-
-                    break;
-                }
-                case ConnectionState.Unknown:
-                default: return;
-            }
-
-            state.connectionState = m_State;
+            // HandleInput();
+            //
+            // ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
+            // var m_State = state.connectionState;
+            //
+            //
+            // switch (m_State)
+            // {
+            //     case ConnectionState.SetupHost:
+            //     {
+            //         Debug.Log("Setting up Host");
+            //         var hostRequestEntity
+            //             = EntityManager.CreateEntity(ComponentType.ReadOnly<RequestToHostRelayServer>());
+            //         EntityManager.AddComponentData(hostRequestEntity, new RequestToHostRelayServer()
+            //         {
+            //             region = default,
+            //             maxPeerConnections = 5,
+            //         });
+            //         m_State = ConnectionState.AwaitingHostSetup;
+            //         break;
+            //     }
+            //     case ConnectionState.AwaitingHostSetup:
+            //     {
+            //         if (SystemAPI.TryGetSingleton<RelayServerHostData>(out var serverData))
+            //         {
+            //             if (!SystemAPI.HasSingleton<RelayClientData>() &&
+            //                 !SystemAPI.HasSingleton<RequestToJoinRelayServer>())
+            //             {
+            //                 var requestToJoinRelayEntity = EntityManager.CreateEntity(ComponentType.ChunkComponentReadOnly<RequestToJoinRelayServer>());
+            //                 EntityManager.AddComponentData(requestToJoinRelayEntity, new RequestToJoinRelayServer()
+            //                 {
+            //                     joinCode = serverData.joinCode
+            //                 });
+            //             }
+            //
+            //             if (SystemAPI.TryGetSingleton<RelayClientData>(out var clientData))
+            //             {
+            //                 SetupRelayHostedServerAndConnect(serverData.data, clientData.data, serverData.joinCode);
+            //                 EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestToHostRelayServer>());
+            //             }
+            //         }
+            //         break;
+            //     }
+            //     case ConnectionState.SetupClient:
+            //     {
+            //         if (SystemAPI.HasSingleton<JoinCode>())
+            //         {
+            //             var joinCode = SystemAPI.GetSingleton<JoinCode>();
+            //
+            //             var enteredJoinCode = !joinCode.value.IsEmpty;
+            //             if (enteredJoinCode)
+            //             {
+            //                 Debug.Log($"Join Code found: {joinCode.value} and join as client");
+            //
+            //                 
+            //                 m_State = ConnectionState.JoinGame;
+            //                 goto case ConnectionState.JoinGame;
+            //             }
+            //         }
+            //
+            //
+            //         break;
+            //     }
+            //     case ConnectionState.JoinGame:
+            //     {
+            //         // Debug.Log($"Join Game {m_HostClientSystem?.RelayClientData.Endpoint.IsValid}");
+            //         var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
+            //         if (hasClientConnectedToRelayService.GetValueOrDefault())
+            //         {
+            //             ConnectToRelayServer();
+            //             m_State = ConnectionState.Unknown;
+            //         }
+            //
+            //         break;
+            //     }
+            //     case ConnectionState.JoinLocalGame:
+            //     {
+            //         var hasClientConnectedToRelayService = m_HostClientSystem?.RelayClientData.Endpoint.IsValid;
+            //         if (hasClientConnectedToRelayService.GetValueOrDefault())
+            //         {
+            //             Debug.Log("Join Local Game");
+            //             m_State = SetupRelayHostedServerAndConnect();
+            //             // m_State = ConnectionState.Unknown;
+            //         }
+            //
+            //         break;
+            //     }
+            //     case ConnectionState.Unknown:
+            //     default: return;
+            // }
+            //
+            // state.connectionState = m_State;
         }
 
         private void HandleInput()
         {
-            if (!SystemAPI.HasSingleton<JoinCode>()) return;
             ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
             if (state.connectionState != ConnectionState.Unknown) return;
 
@@ -147,34 +174,9 @@ namespace Relay
             }
         }
 
-        public void Host()
-        {
-            ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
-            state.connectionState = ConnectionState.SetupHost;
-        }
 
-
-        public void JoinWithCode(FixedString64Bytes code)
-        {
-            Debug.Log($"We are joining as client with code {code}");
-            ref var joinCode = ref SystemAPI.GetSingletonRW<JoinCode>().ValueRW;
-            joinCode.value = code;
-            ref var state = ref SystemAPI.GetComponentRW<RelayConnectionState>(SystemHandle).ValueRW;
-
-            JoinAsClient();
-            state.connectionState = ConnectionState.JoinGame;
-        }
-
-        void JoinAsClient()
-        {
-            SetupClient();
-            var joinCode = SystemAPI.GetSingleton<JoinCode>();
-            Debug.Log($"we join using code: {joinCode.value}");
-            m_HostClientSystem.JoinUsingCode(joinCode.value.Value);
-        }
-
-
-        ConnectionState SetupRelayHostedServerAndConnect()
+        ConnectionState SetupRelayHostedServerAndConnect(RelayServerData relayServerData,
+                                                         RelayServerData relayClientData, FixedString64Bytes joinCode)
         {
             Debug.Log("setting up realy host server and connect");
             if (ClientServerBootstrap.RequestedPlayType != ClientServerBootstrap.PlayType.ClientAndServer)
@@ -184,7 +186,6 @@ namespace Relay
                 return ConnectionState.Unknown;
             }
 
-            var world = World.All[0];
 
             for (int i = World.All.Count - 1; i >= 0; i--)
             {
@@ -196,13 +197,7 @@ namespace Relay
                 }
             }
 
-
             var relayStuff = SystemAPI.GetSingleton<EnableRelayServer>();
-            var relayClientData = world.GetExistingSystemManaged<ConnectingPlayer>().RelayClientData;
-            var relayServerData = world.GetExistingSystemManaged<HostServer>().RelayServerData;
-            var joinCode = world.GetExistingSystemManaged<HostServer>().JoinCode;
-
-
             var createLobbyEntity = EntityManager.CreateEntity();
             EntityManager.AddComponentData(createLobbyEntity, new CreateLobbyRequest()
             {
@@ -220,7 +215,7 @@ namespace Relay
             var snapQuery = new EntityQueryBuilder(Allocator.Temp).WithAll<NetworkSnapshotAck>();
 
             server.EntityManager.DestroyEntity(server.EntityManager.CreateEntityQuery(snapQuery));
-            
+
             var client = ClientServerBootstrap.CreateClientWorld("ClientWorld");
             SceneSystem.LoadSceneAsync(client.Unmanaged, relayStuff.sceneReference);
             client.EntityManager.DestroyEntity(client.EntityManager.CreateEntityQuery(snapQuery));
@@ -252,27 +247,19 @@ namespace Relay
             return ConnectionState.Unknown;
         }
 
-        void SetupClient()
-        {
-            var world = World.All[0];
-            m_HostClientSystem = world.GetOrCreateSystemManaged<ConnectingPlayer>();
-            var simGroup = world.GetExistingSystemManaged<SimulationSystemGroup>();
-            simGroup.AddSystemToUpdateList(m_HostClientSystem);
-        }
 
-        void HostServer()
-        {
-            var world = World.All[0];
-            m_HostServerSystem = world.GetOrCreateSystemManaged<HostServer>();
-            var simGroup = world.GetExistingSystemManaged<SimulationSystemGroup>();
-            simGroup.AddSystemToUpdateList(m_HostServerSystem);
-        }
-
-        void ConnectToRelayServer()
+        void ConnectToRelayServer(RelayServerData relayClientData)
         {
             ClientServerBootstrap.AutoConnectPort = 0;
-            var world = World.All[0];
-            var relayClientData = world.GetExistingSystemManaged<ConnectingPlayer>().RelayClientData;
+            for (int i = World.All.Count - 1; i >= 0; i--)
+            {
+                var previousWorld = World.All[i];
+                if (previousWorld.IsClient() || previousWorld.IsServer())
+                {
+                    Debug.Log($"We dispose of world {previousWorld.Name}");
+                    previousWorld.Dispose();
+                }
+            }
             var relayStuff = SystemAPI.GetSingleton<EnableRelayServer>();
 
             var oldConstructor = NetworkStreamReceiveSystem.DriverConstructor;

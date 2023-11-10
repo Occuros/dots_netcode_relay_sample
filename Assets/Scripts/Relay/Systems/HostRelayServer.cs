@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Relay;
+using Relay.Components;
 using Unity.Entities;
 using UnityEngine;
 using Unity.Services.Relay;
@@ -13,7 +15,7 @@ using Unity.Services.Core;
 namespace Samples.HelloNetcode
 {
     /// <summary>
-    /// Responsible for contacting relay server and setting up <see cref="RelayServerData"/> and <see cref="JoinCode"/>.
+    /// Responsible for contacting relay server and setting up <see cref="_relayServerData"/> and <see cref="_joinCode"/>.
     /// Steps include:
     /// 1. Initializing services
     /// 2. Logging in
@@ -21,109 +23,100 @@ namespace Samples.HelloNetcode
     /// 4. Retrieving join code
     /// 5. Getting relay server information. I.e. IP-address, etc.
     /// </summary>
-    [DisableAutoCreation]
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
-    public partial class HostServer : SystemBase
+    public partial class HostRelayServer : SystemBase
     {
-        const int RelayMaxConnections = 5;
-        public string JoinCode;
 
-        public RelayServerData RelayServerData;
-        HostStatus m_HostStatus;
-        Task<List<Region>> m_RegionsTask;
-        Task<Allocation> m_AllocationTask;
-        Task<string> m_JoinCodeTask;
-        Task m_InitializeTask;
-        Task m_SignInTask;
+        private string _joinCode;
+        private HostStatus _hostStatus;
+        private Task<Allocation> _allocationTask;
+        private Task<string> _joinCodeTask;
 
         [Flags]
         enum HostStatus
         {
             Unknown,
-            InitializeServices,
-            Initializing,
-            SigningIn,
-            FailedToHost,
-            Ready,
             GettingRegions,
             Allocating,
             GettingJoinCode,
             GetRelayData,
+            Ready,
+            FailedToHost,
         }
 
         protected override void OnCreate()
         {
             RequireForUpdate<EnableRelayServer>();
-            m_HostStatus = HostStatus.InitializeServices;
+            RequireForUpdate<UnityServiceInitialized>();
+            RequireForUpdate<RequestToHostRelayServer>();
+            _hostStatus = HostStatus.GettingRegions;
         }
 
         protected override void OnUpdate()
         {
-            switch (m_HostStatus)
+          
+            var request = SystemAPI.GetSingleton<RequestToHostRelayServer>();
+            if (_allocationTask == null)
             {
-                case HostStatus.FailedToHost:
+                Debug.Log("Creating allocation");
+                if (SystemAPI.HasSingleton<RelayServerHostData>())
                 {
-                    // Debug.Log("Failed check console");
+                    EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RelayServerHostData>());
+                }
 
-                    m_HostStatus = HostStatus.Unknown;
-                    return;
-                }
-                case HostStatus.Ready:
-                {
-                    // Debug.Log("Success, players may now connect");
+                _allocationTask = RelayService.Instance.CreateAllocationAsync(request.maxPeerConnections, request.region.IsEmpty? null: request.region.Value);
+                _hostStatus = HostStatus.Allocating;
+            }
+            
+            switch (_hostStatus)
+            {
 
-                    m_HostStatus = HostStatus.Unknown;
-                    return;
-                }
-                case HostStatus.InitializeServices:
-                {
-                    // Debug.Log("Initializing services");
-                    m_InitializeTask = UnityServices.InitializeAsync();
-                    m_HostStatus = HostStatus.Initializing;
-                    return;
-                }
-                case HostStatus.Initializing:
-                {
-                    // Debug.Log("Waiting for initializiation");
-
-                    m_HostStatus = WaitForInitialization(m_InitializeTask, out m_SignInTask);
-                    return;
-                }
-                case HostStatus.SigningIn:
-                {
-                    // Debug.Log("Logging in anonymously");
-
-                    m_HostStatus = WaitForSignIn(m_SignInTask, out m_RegionsTask);
-                    return;
-                }
-                case HostStatus.GettingRegions:
-                {
-                    
-                    // Debug.Log("Waiting for regions");
-
-                    m_HostStatus = WaitForRegions(m_RegionsTask, out m_AllocationTask);
-                    return;
-                }
                 case HostStatus.Allocating:
                 {
                     // Debug.Log("Waiting for allocation");
-
-                    m_HostStatus = WaitForAllocations(m_AllocationTask, out m_JoinCodeTask);
+                    _hostStatus = WaitForAllocations(_allocationTask, out _joinCodeTask);
                     return;
                 }
                 case HostStatus.GettingJoinCode:
                 {
                     // Debug.Log("Waiting for join code");
-
-                    m_HostStatus = WaitForJoin(m_JoinCodeTask, out JoinCode);
+                    _hostStatus = WaitForJoin(_joinCodeTask, out _joinCode);
                     return;
                 }
                 case HostStatus.GetRelayData:
                 {
                     // Debug.Log("Getting relay data");
+                    _hostStatus = BindToHost(_allocationTask, out var relayServerData);
+                    if (_hostStatus == HostStatus.Ready)
+                    {    var serverDataEntity = EntityManager.CreateEntity();
+                        EntityManager.AddComponentData(serverDataEntity, new RelayServerHostData()
+                        {
+                            data = relayServerData,
+                            joinCode = _joinCode
+                        });
 
-                    m_HostStatus = BindToHost(m_AllocationTask, out RelayServerData);
+                        var connectClientRequest = EntityManager.CreateEntity();
+                        EntityManager.AddComponentData(connectClientRequest, new RequestToJoinRelayServer()
+                        {
+                            joinCode = _joinCode
+                        });
+                    }
+                    return;
+                }
+                case HostStatus.Ready:
+                {
+                    // Debug.Log("Success, players may now connect");
+                    _hostStatus = HostStatus.Unknown;
+                    EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<RequestToHostRelayServer>());
+                    _allocationTask = null;
+                    _joinCodeTask = null;
+                    return;
+                }
+                case HostStatus.FailedToHost:
+                {
+                    // Debug.Log("Failed check console");
+                    _hostStatus = HostStatus.Unknown;
                     return;
                 }
                 case HostStatus.Unknown:
@@ -132,54 +125,6 @@ namespace Samples.HelloNetcode
             }
         }
 
-        static HostStatus WaitForSignIn(Task signInTask, out Task<List<Region>> regionTask)
-        {
-            if (!signInTask.IsCompleted)
-            {
-                regionTask = default;
-                return HostStatus.SigningIn;
-            }
-
-            if (signInTask.IsFaulted)
-            {
-                Debug.LogError("Signing in failed");
-                Debug.LogException(signInTask.Exception);
-                regionTask = default;
-                return HostStatus.FailedToHost;
-            }
-
-            // Request list of valid regions
-            regionTask = RelayService.Instance.ListRegionsAsync();
-            return HostStatus.GettingRegions;
-        }
-
-        static HostStatus WaitForInitialization(Task initializeTask, out Task nextTask)
-        {
-            if (!initializeTask.IsCompleted)
-            {
-                nextTask = default;
-                return HostStatus.Initializing;
-            }
-
-            if (initializeTask.IsFaulted)
-            {
-                Debug.LogError("UnityServices Initialization failed");
-                Debug.LogException(initializeTask.Exception);
-                nextTask = default;
-                return HostStatus.FailedToHost;
-            }
-
-            if (AuthenticationService.Instance.IsSignedIn)
-            {
-                nextTask = Task.CompletedTask;
-                return HostStatus.SigningIn;
-            }
-            else
-            {
-                nextTask = AuthenticationService.Instance.SignInAnonymouslyAsync();
-                return HostStatus.SigningIn;
-            }
-        }
 
         // Bind and listen to the Relay server
         static HostStatus BindToHost(Task<Allocation> allocationTask, out RelayServerData relayServerData)
@@ -196,6 +141,7 @@ namespace Samples.HelloNetcode
                 relayServerData = default;
                 return HostStatus.FailedToHost;
             }
+
             return HostStatus.Ready;
         }
 
@@ -214,6 +160,7 @@ namespace Samples.HelloNetcode
                 Debug.LogException(joinCodeTask.Exception);
                 return HostStatus.FailedToHost;
             }
+
             Debug.Log("Waiting for join code");
             joinCode = joinCodeTask.Result;
             Debug.Log($"Received join code {joinCode}");
@@ -235,38 +182,14 @@ namespace Samples.HelloNetcode
                 joinCodeTask = null;
                 return HostStatus.FailedToHost;
             }
+
             Debug.Log("Waiting for allocation");
             // Request the join code to the Relay service
             var allocation = allocationTask.Result;
             joinCodeTask = RelayService.Instance.GetJoinCodeAsync(allocation.AllocationId);
             return HostStatus.GettingJoinCode;
         }
-
-        static HostStatus WaitForRegions(Task<List<Region>> collectRegionTask, out Task<Allocation> allocationTask)
-        {
-            if (!collectRegionTask.IsCompleted)
-            {
-                allocationTask = null;
-                return HostStatus.GettingRegions;
-            }
-
-            if (collectRegionTask.IsFaulted)
-            {
-                Debug.LogError("List regions request failed");
-                Debug.LogException(collectRegionTask.Exception);
-                allocationTask = null;
-                return HostStatus.FailedToHost;
-            }
-            Debug.Log("Waiting for regions");
-            var regionList = collectRegionTask.Result;
-            // pick a region from the list
-            var targetRegion = regionList[0].Id;
-
-            // Request an allocation to the Relay service
-            // with a maximum of 5 peer connections, for a maximum of 6 players.
-            allocationTask = RelayService.Instance.CreateAllocationAsync(RelayMaxConnections, null);
-            return HostStatus.Allocating;
-        }
+        
 
         // connectionType also supports udp, but this is not recommended
         static RelayServerData HostRelayData(Allocation allocation, string connectionType = "dtls")

@@ -43,6 +43,14 @@ namespace Relay
                 _createLobbyTask = Lobbies.Instance.CreateLobbyAsync(lobbyData.lobbyName.Value, lobbyData.maxPlayers, createLobbyOptions);
                 EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<CreateLobbyRequest>());
             }
+
+            if (SystemAPI.TryGetSingleton<JoinLobbyRequest>(out var joinLobbyRequest))
+            {
+                _joinLobbyTask = LobbyService.Instance.JoinLobbyByIdAsync(joinLobbyRequest.lobbyId.Value);
+                EntityManager.DestroyEntity(SystemAPI.GetSingletonEntity<JoinLobbyRequest>());
+            }
+            
+            
             
             HandleCreateLobby();
             HandleJoinLobby();
@@ -83,14 +91,12 @@ namespace Relay
             if (_joinLobbyTask.IsCompletedSuccessfully)
             {
                 _currentLobby = _joinLobbyTask.Result;
-                ref var joinCode = ref SystemAPI.GetSingletonRW<JoinCode>().ValueRW;
-                joinCode.value = _currentLobby.Data[RelayUtilities.JoinCodeKey].Value;
+                var joinCode = _currentLobby.Data[RelayUtilities.JoinCodeKey].Value;
                 Debug.Log($"Lobby Joining Succeeded: {_currentLobby.Id}");
-
                 var setupClientRelayEntity = EntityManager.CreateEntity();
-                EntityManager.AddComponentData(setupClientRelayEntity, new RequestClientRelayWithJoinCode()
+                EntityManager.AddComponentData(setupClientRelayEntity, new RequestToJoinRelayServer()
                 {
-                    joinCode = _currentLobby.Data[RelayUtilities.JoinCodeKey].Value
+                    joinCode = joinCode
                 });
                 _joinLobbyTask = null;
             }
