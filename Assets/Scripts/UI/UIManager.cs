@@ -1,8 +1,7 @@
 ﻿using System.Collections.Generic;
-using Relay;
+using LobbyAndRelay.Components;
 using TMPro;
 using Unity.Entities;
-using Unity.Services.Lobbies;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -34,7 +33,12 @@ namespace UI
         {
             hostButton.onClick.AddListener(() =>
             {
-                World.All[0].GetExistingSystemManaged<RelayTestSystem>().Host();
+                var world = World.All[0];
+                var requestEntity = world.EntityManager.CreateEntity(ComponentType.ReadOnly<RequestToHostRelayServer>());
+                world.EntityManager.AddComponentData(requestEntity, new RequestToHostRelayServer()
+                {
+                    maxPeerConnections = 5,
+                });
             });
         }
 
@@ -46,7 +50,12 @@ namespace UI
             _buttons.Add(joinButton);
             joinButton.onClick.AddListener(() =>
             {
-                World.All[0].GetExistingSystemManaged<LobbySystem>().JoinLobby(lobbyInfoElement.lobbyId);
+                var world = World.All[0];
+                var requestEntity = world.EntityManager.CreateEntity(ComponentType.ReadOnly<JoinLobbyRequest>());
+                world.EntityManager.AddComponentData(requestEntity, new JoinLobbyRequest()
+                {
+                    lobbyId = lobbyInfoElement.lobbyId
+                });
             });
         }
 
