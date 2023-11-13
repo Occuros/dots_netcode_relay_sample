@@ -1,9 +1,7 @@
 ﻿using System.Collections.Generic;
-using Relay;
-using Relay.Components;
+using LobbyAndRelay.Components;
 using TMPro;
 using Unity.Entities;
-using Unity.Services.Lobbies;
 using UnityEngine;
 using UnityEngine.UI;
 
