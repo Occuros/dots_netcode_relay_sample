@@ -48,7 +48,6 @@ namespace LobbyAndRelay.Systems
         void SetupRelayHostedServerAndConnect(RelayServerData relayServerData,
                                                          RelayServerData relayClientData, FixedString64Bytes joinCode)
         {
-            Debug.Log("setting up realy host server and connect");
             if (ClientServerBootstrap.RequestedPlayType != ClientServerBootstrap.PlayType.ClientAndServer)
             {
                 UnityEngine.Debug.LogError(
@@ -61,7 +60,6 @@ namespace LobbyAndRelay.Systems
                 var previousWorld = World.All[i];
                 if (previousWorld.IsClient() || previousWorld.IsServer())
                 {
-                    Debug.Log($"We dispose of world {previousWorld.Name}");
                     previousWorld.Dispose();
                 }
             }

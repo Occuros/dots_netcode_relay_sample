@@ -16,7 +16,6 @@ namespace LobbyAndRelay.Components
     public struct RelayClientData : IComponentData
     {
         public RelayServerData data;
-        // public RelayClientStatus status;
     }
 
     public struct RequestToHostRelayServer : IComponentData

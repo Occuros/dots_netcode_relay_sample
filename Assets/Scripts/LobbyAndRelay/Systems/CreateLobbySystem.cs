@@ -1,7 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Threading.Tasks;
 using LobbyAndRelay.Components;
-using Samples.HelloNetcode;
 using Unity.Entities;
 using Unity.Services.Lobbies;
 using Unity.Services.Lobbies.Models;
@@ -12,8 +11,8 @@ namespace LobbyAndRelay.Systems
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     public partial class CreateLobbySystem : SystemBase
     {
-        private Task<Unity.Services.Lobbies.Models.Lobby> _createLobbyTask;
-        private Task<Unity.Services.Lobbies.Models.Lobby> _joinLobbyTask;
+        private Task<Lobby> _createLobbyTask;
+        private Task<Lobby> _joinLobbyTask;
 
         protected override void OnCreate()
         {

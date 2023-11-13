@@ -2,13 +2,10 @@ using System.Collections.Generic;
 using LobbyAndRelay.Components;
 using LobbySelection.Components;
 using Unity.Entities;
-using Unity.Entities.Serialization;
 using UnityEngine;
 
 namespace LobbyAndRelay.Authoring
 {
-
-
     #if UNITY_EDITOR
     public class EnableRelayServerAuthoring : MonoBehaviour
     {

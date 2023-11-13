@@ -10,15 +10,6 @@ using Unity.Networking.Transport.Relay;
 
 namespace LobbyAndRelay.Systems
 {
-    /// <summary>
-    /// Responsible for contacting relay server and setting up <see cref="_relayServerData"/> and <see cref="_joinCode"/>.
-    /// Steps include:
-    /// 1. Initializing services
-    /// 2. Logging in
-    /// 3. Allocating number of players that are allowed to join.
-    /// 4. Retrieving join code
-    /// 5. Getting relay server information. I.e. IP-address, etc.
-    /// </summary>
     [WorldSystemFilter(WorldSystemFilterFlags.LocalSimulation)]
     [UpdateInGroup(typeof(SimulationSystemGroup))]
     public partial class HostRelayServer : SystemBase

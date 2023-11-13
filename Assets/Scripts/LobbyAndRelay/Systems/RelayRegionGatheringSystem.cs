@@ -13,17 +13,12 @@ namespace LobbyAndRelay.Systems
     {
         private Task<List<Region>> _collectRegionsTask;
 
-        private enum RelayRegionGatheringStatus
-        {
-            None,
-            Gathering,
-            Done,
-        }
-
-
         protected override void OnCreate()
         {
+            RequireForUpdate<UnityServiceInitialized>();
             RequireForUpdate<RequestRelayRegions>();
+            var request = EntityManager.CreateEntity();
+            EntityManager.AddComponentData(request, new RequestRelayRegions());
         }
 
         protected override void OnUpdate()
@@ -55,7 +50,6 @@ namespace LobbyAndRelay.Systems
                 for (var i = 0; i < regionList.Count; i++)
                 {
                     var r = regionList[i];
-                    Debug.Log($"We retrieved region: {r.Id}: {r.Description}");
                     regionsBuffer.Add(new RelayRegionElement()
                     {
                         region = r.Id
